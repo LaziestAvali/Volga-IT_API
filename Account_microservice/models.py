@@ -16,5 +16,6 @@ class UpdateUser(LoginUser):
 class FullUser(BaseUser):
     roles: List[str]
 
-class AccessToken(BaseModel):
-    accessToken: str
+class UserIds(BaseModel):
+    start: int
+    count: int
