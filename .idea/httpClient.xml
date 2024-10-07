@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="HttpClientEndpointsTabState">
-    <option name="requestToText" value="&lt;CachedHttpClientTabRequests&gt;&#10;  &lt;entry key=&quot;27f3980b718a46bb694701f6f11a1f3dc3ebbb1d&quot; value=&quot;###&amp;#10;GET http://localhost:8000/hello/{{name}}&quot; /&gt;&#10;&lt;/CachedHttpClientTabRequests&gt;" />
+    <option name="requestToText" value="&lt;CachedHttpClientTabRequests&gt;&#10;  &lt;entry key=&quot;0a5f87f2f19cf51725325eec7a322402d8ecd780&quot; value=&quot;###&amp;#10;GET http://localhost:8000/api/Accounts/Me&quot; /&gt;&#10;&lt;/CachedHttpClientTabRequests&gt;" />
   </component>
 </project>
