@@ -69,17 +69,21 @@ async def autorization(token: str, role: list | tuple):
 
 @account_app.post('/api/Authentication/SignUp')
 async def sign_up(response: Response, payload: LoginUser):
-    response.set_cookie(key='jwt_access_token', value=create_token('access', payload.model_dump()), httponly=True)
-    response.set_cookie(key='jwt_refresh_token', value=create_token('refresh', payload.model_dump()), httponly=True)
-    full_payload = payload.model_dump() | {'roles': ['user']}
+    payload = payload.model_dump()
+    full_payload = payload | {'roles': ['user']}
     if not await db_manager.add_user(full_payload):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='User already exists')
+    payload = {'login': payload['login'], 'password': payload['password']}
+    response.set_cookie(key='jwt_access_token', value=create_token('access', payload), httponly=True)
+    response.set_cookie(key='jwt_refresh_token', value=create_token('refresh', payload), httponly=True)
+
 
 @account_app.post('/api/Authentication/SignIn', status_code=status.HTTP_200_OK)
 async def sign_in(response: Response, payload: BaseUser):
-    if await db_manager.user_in_db(payload.model_dump()):
-        response.set_cookie(key='jwt_access_token', value=create_token('access', payload.model_dump()), httponly=True)
-        response.set_cookie(key='jwt_refresh_token', value=create_token('refresh', payload.model_dump()), httponly=True)
+    payload = payload.model_dump()
+    if await db_manager.user_in_db(payload):
+        response.set_cookie(key='jwt_access_token', value=create_token('access', payload), httponly=True)
+        response.set_cookie(key='jwt_refresh_token', value=create_token('refresh', payload), httponly=True)
     else:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
 
@@ -112,8 +116,10 @@ async def update(request: Request, response: Response, payload: UpdateUser):
     if await validate_token(request, response):
         token = request.cookies.get('jwt_access_token')
         decoded_token = jwt.decode(token, pyenv['JWT_SECRET'], algorithms=['HS256'])
+        payload = payload.model_dump()
         if decoded_token['password'] != payload['password']:
-            raise HTTPException(status_code=status.HTTP_406_NOT_ACCEPTABLE)
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
+        payload['login'] = decoded_token['login']
         payload['firstName'] = decoded_token['firstName']
         payload['lastName'] = decoded_token['lastName']
         await db_manager.update_user(payload)
@@ -138,9 +144,14 @@ async def new_account(request: Request, response: Response, body: FullUser):
         if not await db_manager.add_user(body.model_dump()):
             HTTPException(status.HTTP_405_METHOD_NOT_ALLOWED)
 
-@account_app.put('/api/Accounts/{id}')
-async def update_admin(request: Request, response: Response, body: FullUser):
+@account_app.put('/api/Accounts/{user_id}')
+async def update_admin(request: Request, response: Response, body: FullUser, user_id: int):
     if validate_token(request, response):
         token = request.cookies.get('jwt_access_token')
         await autorization(token, ['admin'])
         payload = body.model_dump()
+        await db_manager.update_user_by_id(user_id, payload)
+
+@account_app.delete('/api/Accounts/{user_id}')
+async def safe_delete(request: Request, response: Response, user_id: int):
+    pass

@@ -14,7 +14,8 @@ account = pypg.Table(
     pypg.Column('login', pypg.String(20), nullable=False),
     pypg.Column('password', pypg.String(50), nullable=False),
     pypg.Column('firstName', pypg.String(50), nullable=False),
-    pypg.Column('lastName', pypg.String(50), nullable=False)
+    pypg.Column('lastName', pypg.String(50), nullable=False),
+    pypg.Column('is_disabled', pypg.Boolean, nullable=False, default=0)
 )
 
 role = pypg.Table(
