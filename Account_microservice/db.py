@@ -2,7 +2,7 @@ import sqlalchemy as pypg
 from databases import Database
 from os import environ as pyenv
 
-database_URL = f'postgresql://postgres:7981Wsx76+@127.0.0.1:5432/postgres'
+database_URL = f'postgresql://username:password@127.0.0.1:5432/postgres'
 
 engine = pypg.create_engine(database_URL)
 metadata = pypg.MetaData()

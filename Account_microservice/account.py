@@ -13,7 +13,7 @@ import datetime as dt
 account_app = APIRouter()
 
 
-def create_token(types: Literal['access','refresh'], payload: dict) -> str:
+def create_token(types: Literal['access', 'refresh'], payload: dict) -> str:
     current_timestamp = dt.datetime.now(tz=dt.timezone.utc).timestamp()
     data = {
         'iss': 'account_microservice',
@@ -59,6 +59,14 @@ def update_tokens(token):
     except jwt.InvalidTokenError:
         raise HTTPException(status_code=status.HTTP_406_NOT_ACCEPTABLE)
 
+async def autorization(token: str, role: list | tuple):
+    decoded_token = jwt.decode(token, pyenv['JWT_SECRET'], algorithms=['HS256'])
+    user = await db_manager.get_user(decoded_token)
+    for user_role in user['roles']:
+        if user_role in role:
+            return
+    raise HTTPException(status_code=status.HTTP_406_NOT_ACCEPTABLE)
+
 @account_app.post('/api/Authentication/SignUp')
 async def sign_up(response: Response, payload: LoginUser):
     response.set_cookie(key='jwt_access_token', value=create_token('access', payload.model_dump()), httponly=True)
@@ -95,15 +103,14 @@ async def refresh(request: Request, response: Response):
 
 @account_app.get('/api/Accounts/Me', status_code=status.HTTP_200_OK)
 async def get_info(request: Request, response: Response):
-    token = request.cookies.get('jwt_access_token')
-    print(token)
     if await validate_token(request, response):
+        token = request.cookies.get('jwt_access_token')
         return await db_manager.get_user(jwt.decode(token, pyenv['JWT_SECRET'], algorithms=['HS256']))
 
 @account_app.put('/api/Accounts/Update', status_code=status.HTTP_200_OK)
 async def update(request: Request, response: Response, payload: UpdateUser):
-    token = request.cookies.get('jwt_access_token')
     if await validate_token(request, response):
+        token = request.cookies.get('jwt_access_token')
         decoded_token = jwt.decode(token, pyenv['JWT_SECRET'], algorithms=['HS256'])
         if decoded_token['password'] != payload['password']:
             raise HTTPException(status_code=status.HTTP_406_NOT_ACCEPTABLE)
@@ -113,13 +120,9 @@ async def update(request: Request, response: Response, payload: UpdateUser):
 
 @account_app.get('/api/Accounts', status_code=status.HTTP_200_OK)
 async def get_accounts(request: Request, response: Response, body: UserIds):
-    token = request.cookies.get('jwt_access_token')
     if await validate_token(request, response):
-        decoded_token = jwt.decode(token, pyenv['JWT_SECRET'], algorithms=['HS256'])
-        user = await db_manager.get_user(decoded_token)
-        for role in user['roles']:
-            if role != 'admin':
-                raise HTTPException(status_code=status.HTTP_406_NOT_ACCEPTABLE)
+        token = request.cookies.get('jwt_access_token')
+        await autorization(token, ['admin'])
         payload = body.model_dump()
         finish = []
         start = int(payload['start'])
@@ -127,6 +130,17 @@ async def get_accounts(request: Request, response: Response, body: UserIds):
             finish.append(await db_manager.get_user_by_id(start+account))
         return {'users': finish}
 
+@account_app.post('/api/Accounts', status_code=status.HTTP_201_CREATED)
+async def new_account(request: Request, response: Response, body: FullUser):
+    if validate_token(request, response):
+        token = request.cookies.get('jwt_access_token')
+        await autorization(token, ['admin'])
+        if not await db_manager.add_user(body.model_dump()):
+            HTTPException(status.HTTP_405_METHOD_NOT_ALLOWED)
 
-    ## БДШКУ СЮДА ХАЧУ
-    pass
+@account_app.put('/api/Accounts/{id}')
+async def update_admin(request: Request, response: Response, body: FullUser):
+    if validate_token(request, response):
+        token = request.cookies.get('jwt_access_token')
+        await autorization(token, ['admin'])
+        payload = body.model_dump()

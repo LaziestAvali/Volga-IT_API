@@ -11,10 +11,20 @@ class LoginUser(BaseUser):
     lastName: str
 
 class UpdateUser(LoginUser):
-    login: None = None
+    login: None
+    password: str
+    firstName: Optional[str] = None
+    lastName: Optional[str] = None
 
 class FullUser(BaseUser):
     roles: List[str]
+
+class UpdateFullUser(FullUser):
+    login: Optional[str] = None
+    password: Optional[str] = None
+    firstName: Optional[str] = None
+    lastName: Optional[str] = None
+    roles: Optional[List[str]] = None
 
 class UserIds(BaseModel):
     start: int
