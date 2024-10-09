@@ -29,9 +29,16 @@ account_role = pypg.Table(
     'account_role',
     metadata,
     pypg.Column('id', pypg.Integer, primary_key=True),
-    pypg.Column('account_id', pypg.Integer, nullable=False, foreign_key='user.id'),
+    pypg.Column('account_id', pypg.Integer, nullable=False, foreign_key='account.id'),
     pypg.Column('role_id', pypg.Integer, nullable=False, foreign_key='role.id')
 
 )
 
+tokens = pypg.Table(
+    'tokens',
+    metadata,
+    pypg.Column('id', pypg.Integer, primary_key=True),
+    pypg.Column('user_id', pypg.Integer, nullable=False),
+    pypg.Column('token', pypg.String(500), nullable=False),
+)
 database = Database(database_URL)

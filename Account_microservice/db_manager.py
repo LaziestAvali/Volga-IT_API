@@ -1,6 +1,16 @@
 import sqlalchemy as pypg
 
-from Account_microservice.db import account, role, account_role, database
+from Account_microservice.db import account, role, account_role, tokens, database
+
+async def add_token(token: str, payload: dict):
+    ## ДОДЕЛАТЬ, ДОЛБАН
+    pass
+
+async def delete_token(token: str):
+    ## И ЭТО ТОЖЕ!!!
+    query = (
+        pypg.delete(tokens)
+    )
 
 async def add_user(payload: dict):
     account_id = await database.execute(account.select().where((account.c.login == payload['login']) & account.c.is_disabled == 0))
@@ -44,7 +54,6 @@ async def get_user(payload):
     full_user = main_info | {'roles': roles_list}
     return full_user
 
-
 async def get_user_by_id(user_id: int):
     roles = (
         role.select()
@@ -62,7 +71,6 @@ async def get_user_by_id(user_id: int):
     full_user = main_info | {'roles': roles_list}
     return full_user
 
-
 async def update_user(payload: dict):
     query = (
         account.update()
@@ -78,7 +86,7 @@ async def update_user_by_id(user_id: int, payload: dict):
     user['firstName'] = payload['firstName'] if payload['firstName'] else user['firstName']
     user['lastName'] = payload['lastName'] if payload['lastName'] else user['lastName']
     user_query = (
-        pypg.update(account)
+        account.update()
         .where(account.c.id == user_id)
         .values(user)
     )
