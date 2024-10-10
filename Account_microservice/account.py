@@ -8,8 +8,8 @@ from starlette import status
 import datetime as dt
 import hashlib
 
-
-from Account_microservice.models import BaseUser, LoginUser, UpdateUser, FullUser, UserIds, DoctorIds
+from Account_microservice.db_manager import get_user_by_id
+from Account_microservice.models import BaseUser, LoginUser, UpdateUser, FullUser
 from Account_microservice import db_manager
 
 
@@ -27,7 +27,7 @@ async def create_token(types: Literal['access', 'refresh'], payload: dict) -> st
     data = {
         'iss': 'account_microservice',  # Кто выдал
         'type': types,  # Тип токена
-        'jti': uuid4(),  # Уникальный идентификатор
+        'jti': str(uuid4()),  # Уникальный идентификатор
         'nbf': current_timestamp,  # Время создания
         'exp': current_timestamp + refresh_token_lifetime if type == 'refresh' else current_timestamp + access_token_lifetime,  # Время окончания действия
     }
@@ -124,7 +124,11 @@ async def sign_up(response: Response, payload: LoginUser):
 
 
 @account_app.post('/api/Authentication/SignIn', status_code=status.HTTP_200_OK)
-async def sign_in(response: Response, payload: BaseUser):
+async def sign_in(request: Request, response: Response, payload: BaseUser):
+    if request.cookies['jwt_refresh_token']:
+        await db_manager.delete_token(hashlib.sha512(request.cookies['jwt_refresh_token'].encode()).hexdigest())
+        response.delete_cookie(key='jwt_access_token')
+        response.delete_cookie(key='jwt_refresh_token')
     payload = payload.model_dump()
     payload['password'] = hashlib.sha512(payload['password'].encode('utf-8')).hexdigest()
     payload = payload | {'roles': ['user']}
@@ -141,6 +145,7 @@ async def sign_in(response: Response, payload: BaseUser):
 @account_app.put('/api/Authentication/SignOut', status_code=status.HTTP_200_OK)
 async def sign_out(request: Request, response: Response):
     if validate_access_token(request, response):
+        await db_manager.delete_token(hashlib.sha512(request.cookies['jwt_refresh_token'].encode()).hexdigest())
         response.delete_cookie(key='jwt_access_token')
         response.delete_cookie(key='jwt_refresh_token')
 
@@ -169,26 +174,33 @@ async def get_info(request: Request, response: Response):
 @account_app.put('/api/Accounts/Update', status_code=status.HTTP_200_OK)
 async def update(request: Request, response: Response, payload: UpdateUser):
     if await validate_access_token(request, response):
+        payload = payload.model_dump()
         token = request.cookies.get('jwt_access_token')
         decoded_token = jwt.decode(token, pyenv['JWT_SECRET'], algorithms=['HS256'])
-        payload = payload.model_dump()
-        await db_manager.update_user(decoded_token)
+        await db_manager.update_user(decoded_token, payload)
 
 
 @account_app.get('/api/Accounts', status_code=status.HTTP_200_OK)
-async def get_accounts(request: Request, response: Response, body: UserIds):
+async def get_accounts(request: Request, response: Response, start: int = 1, count: int = -1):
     if await validate_access_token(request, response):
         token = request.cookies.get('jwt_access_token')
         await authorization(token, ['admin'])
-        payload = body.model_dump()
         finish = []
-        start = int(payload['start'])
-        for account in range(payload['count']):
-            user = await db_manager.get_user_by_id(start+account)
-            if user:
+        if count == -1:
+            user_id = 0
+            while True:
+                user = await db_manager.get_user_by_id(start+user_id)
+                if not user:
+                    break
                 finish.append(user)
-                continue
-            raise HTTPException(status_code=status.HTTP_416_REQUESTED_RANGE_NOT_SATISFIABLE)
+                user_id += 1
+        else:
+            for account in range(count):
+                user = await db_manager.get_user_by_id(start+account)
+                if not user:
+                    break
+                finish.append(user)
+
         return {'users': finish}
 
 
@@ -197,11 +209,14 @@ async def new_account(request: Request, response: Response, body: FullUser):
     if validate_access_token(request, response):
         token = request.cookies.get('jwt_access_token')
         await authorization(token, ['admin'])
-        if not await db_manager.add_user(body.model_dump()):
+        payload = body.model_dump()
+        payload['password'] = hashlib.sha512(payload['password'].encode('utf-8')).hexdigest()
+        payload = payload | {'roles': ['user']}
+        if not await db_manager.add_user(payload):
             HTTPException(status.HTTP_404_NOT_FOUND)
 
 
-@account_app.put('/api/Accounts/{user_id}')
+@account_app.put('/api/Accounts/{user_id}', status_code=status.HTTP_200_OK)
 async def update_admin(request: Request, response: Response, body: FullUser, user_id: int):
     if validate_access_token(request, response):
         token = request.cookies.get('jwt_access_token')
@@ -211,7 +226,7 @@ async def update_admin(request: Request, response: Response, body: FullUser, use
             HTTPException(status.HTTP_404_NOT_FOUND)
 
 
-@account_app.delete('/api/Accounts/{user_id}')
+@account_app.delete('/api/Accounts/{user_id}', status_code=status.HTTP_202_ACCEPTED)
 async def safe_delete(request: Request, response: Response, user_id: int):
     if validate_access_token(request, response):
         token = request.cookies.get('jwt_access_token')
@@ -220,8 +235,19 @@ async def safe_delete(request: Request, response: Response, user_id: int):
             HTTPException(status.HTTP_404_NOT_FOUND)
 
 
-@account_app.get('/api/Doctors')
-async def get_doctors(request: Request, response: Response, doctor_id: DoctorIds):
-    if validate_access_token(request, response):
-        doctor_id = doctor_id.model_dump()
-        user = db_manager.get_doctor(doctor_id)
+@account_app.get('/api/Doctors', status_code=status.HTTP_200_OK)
+async def get_doctors(request: Request, response: Response, nameFilter: str = '', start: int = 0, count: int = -1):
+    if await validate_access_token(request, response):
+        finish = await db_manager.get_doctor(start, count, nameFilter)
+
+        return {'doctors': finish}
+
+@account_app.get('/api/Doctors/{id}', status_code=status.HTTP_200_OK)
+async def get_doctor(request: Request, response: Response, doctor_id: int):
+    if await validate_access_token(request, response):
+        doctor = await get_user_by_id(doctor_id)
+        if (not doctor) or ('doctor' not in doctor['roles']):
+            raise HTTPException(status.HTTP_404_NOT_FOUND)
+        doctor = {'id': doctor_id,'firstName': doctor['firstName'],'lastName': doctor['lastName']}
+        return doctor
+

@@ -14,27 +14,18 @@ class LoginUser(BaseUser):
 
 class UpdateUser(LoginUser):
     login: None
-    password: str
+    password: Optional[str] = None
     firstName: Optional[str] = None
     lastName: Optional[str] = None
 
 
-class FullUser(BaseUser):
+class FullUser(LoginUser):
     roles: List[str]
 
 
 class UpdateFullUser(FullUser):
-    login: Optional[str] = None
+    login: None = None
     password: Optional[str] = None
     firstName: Optional[str] = None
     lastName: Optional[str] = None
     roles: Optional[List[str]] = None
-
-
-class UserIds(BaseModel):
-    start: int
-    count: int
-
-
-class DoctorIds(UserIds):
-    nameFilter: str
