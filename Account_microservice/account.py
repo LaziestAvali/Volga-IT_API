@@ -223,4 +223,5 @@ async def safe_delete(request: Request, response: Response, user_id: int):
 @account_app.get('/api/Doctors')
 async def get_doctors(request: Request, response: Response, doctor_id: DoctorIds):
     if validate_access_token(request, response):
-        user = db_manager.get_user_by_id(do)
+        doctor_id = doctor_id.model_dump()
+        user = db_manager.get_doctor(doctor_id)

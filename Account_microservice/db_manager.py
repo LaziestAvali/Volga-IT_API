@@ -60,7 +60,7 @@ async def user_in_db(payload: dict):
     return False
 
 
-async def get_user(payload):
+async def get_user(payload: dict):
     roles = (
         role.select()
         .select_from(account_role)
@@ -76,6 +76,16 @@ async def get_user(payload):
     main_info = {'login': main_info[1], 'password': main_info[2], 'firstName': main_info[3], 'lastName': main_info[4]}
     full_user = main_info | {'roles': roles_list}
     return full_user
+
+
+async def get_doctor(payload: dict):
+    doctor_query = (
+        account.select()
+        .select_from(account_role)
+        .join(account, account_role.c.account_id == account.c.id)
+        .join(role, account_role.c.role_id == role.c.id)
+        .where((role.c.name == 'doctor') & (account.c.is_disabled == 0) & ((account.c.firstName + account.c.lastName).icontains(payload['nameFilter'])))
+    )
 
 
 async def get_user_by_id(user_id: int):
@@ -135,7 +145,7 @@ async def update_user_by_id(user_id: int, payload: dict):
 
     return True
 
-
+## ТЕСТИТЬ
 async def soft_delete(user_id: int):
     user_real = (
         account.select()
