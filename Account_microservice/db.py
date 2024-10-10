@@ -38,7 +38,7 @@ tokens = pypg.Table(
     'tokens',
     metadata,
     pypg.Column('id', pypg.Integer, primary_key=True),
-    pypg.Column('user_id', pypg.Integer, nullable=False),
+    pypg.Column('account_id', pypg.Integer, nullable=False),
     pypg.Column('token', pypg.String(500), nullable=False),
 )
 database = Database(database_URL)

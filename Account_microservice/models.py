@@ -6,9 +6,11 @@ class BaseUser(BaseModel):
     login: str
     password: str
 
+
 class LoginUser(BaseUser):
     firstName: str
     lastName: str
+
 
 class UpdateUser(LoginUser):
     login: None
@@ -16,8 +18,10 @@ class UpdateUser(LoginUser):
     firstName: Optional[str] = None
     lastName: Optional[str] = None
 
+
 class FullUser(BaseUser):
     roles: List[str]
+
 
 class UpdateFullUser(FullUser):
     login: Optional[str] = None
@@ -26,6 +30,11 @@ class UpdateFullUser(FullUser):
     lastName: Optional[str] = None
     roles: Optional[List[str]] = None
 
+
 class UserIds(BaseModel):
     start: int
     count: int
+
+
+class DoctorIds(UserIds):
+    nameFilter: str
