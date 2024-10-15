@@ -191,13 +191,24 @@ async def get_accounts(request: Request, response: Response, start: int = 1, cou
                 user = await db_manager.get_user_by_id(start+user_id)
                 if not user:
                     break
-                finish.append(user)
                 user_id += 1
+                if user == 'disabled':
+                    continue
+                finish.append(user)
         else:
-            for account in range(count):
-                user = await db_manager.get_user_by_id(start+account)
+            user_id = 0
+            while True:
+                user = await db_manager.get_user_by_id(start+user_id)
                 if not user:
                     break
+                user_id += 1
+                if user == 'disabled':
+                    continue
+                if user_id == count:
+                    break
+                finish.append(user)
+
+
                 finish.append(user)
 
         return {'users': finish}
@@ -212,7 +223,7 @@ async def new_account(request: Request, response: Response, body: FullUser):
         payload['password'] = hashlib.sha512(payload['password'].encode('utf-8')).hexdigest()
         payload = payload | {'roles': ['user']}
         if not await db_manager.add_user(payload):
-            HTTPException(status.HTTP_404_NOT_FOUND)
+            HTTPException(status.HTTP_400_BAD_REQUEST)
 
 
 @account_app.put('/api/Accounts/{user_id}', status_code=status.HTTP_200_OK)

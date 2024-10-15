@@ -7,7 +7,7 @@ services:
     volumes:
       - ./Account_microservice/:/app/
     ports:
-      - 20001:20000
+      - 20000:20000
     environment:
       - ACCOUNT_USER=accountadmin
       - ACCOUNT_PSWD=frrfeynflvbygfhjkm
@@ -17,7 +17,7 @@ services:
     volumes:
       - postgres_data_account:/var/lib/postgresql/data
     ports:
-      - 5433:5432
+      - 30000:30000
     environment:
       - POSTGRES_USER=accountadmin
       - POSTGRES_PASSWORD=frrfeynflvbygfhjkm

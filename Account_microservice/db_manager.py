@@ -108,7 +108,8 @@ async def get_user_by_id(user_id: int):
     if not main_info:
         return False
     main_info = tuple(main_info.values())
-
+    if main_info[-1]:
+        return 'disabled'
     roles = (
         role.select()
         .select_from(account_role)
