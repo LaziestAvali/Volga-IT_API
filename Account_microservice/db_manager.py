@@ -1,6 +1,6 @@
 import sqlalchemy as pypg
 
-from Account_microservice.db import account, role, account_role, tokens, database
+from db import account, role, account_role, tokens, database
 
 
 async def add_token(token: str, payload: dict):
@@ -81,17 +81,20 @@ async def get_user(payload: dict):
 
 async def get_doctor(start: int, count: int, name_filter: str):
     full_name = account.c.firstName + ' ' + account.c.lastName
-    doctor_query = (
+    doctor_subquery = (
         account.select()
         .select_from(account_role)
         .join(account, account_role.c.account_id == account.c.id)
         .join(role, account_role.c.role_id == role.c.id)
         .where((role.c.name == 'doctor') & (account.c.is_disabled == False) & (full_name.icontains(name_filter)))
+        .order_by(account.c.id)
+        .subquery()
     )
-    if count == -1:
-        doctor_query = doctor_query.where(account.c.id >= start)
-    else:
-        doctor_query = doctor_query.where(account.c.id.between(start, start + count))
+    doctor_query = (
+        pypg.select(doctor_subquery).offset(start)
+    )
+    if count != -1:
+        doctor_query = doctor_query.limit(count)
     doctor_list = await database.fetch_all(query=doctor_query)
     for i in range(len(doctor_list)):
         temp = tuple(doctor_list[i].values())

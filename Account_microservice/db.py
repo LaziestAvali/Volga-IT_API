@@ -2,7 +2,7 @@ import sqlalchemy as pypg
 from databases import Database
 from os import environ as pyenv
 
-database_URL = f'postgresql://{pyenv['ACCOUNT_USER']}:{pyenv['ACCOUNT_PSWD']}@localhost:5432/postgres'
+database_URL = f'postgresql://{pyenv['ACCOUNT_USER']}:{pyenv['ACCOUNT_PSWD']}@127.0.0.1:5432/postgres'
 
 engine = pypg.create_engine(database_URL)
 metadata = pypg.MetaData()
@@ -29,8 +29,8 @@ account_role = pypg.Table(
     'account_role',
     metadata,
     pypg.Column('id', pypg.Integer, primary_key=True),
-    pypg.Column('account_id', pypg.Integer, nullable=False, foreign_key=account.c.id),
-    pypg.Column('role_id', pypg.Integer, nullable=False, foreign_key=role.c.id)
+    pypg.Column('account_id', pypg.Integer, nullable=False),
+    pypg.Column('role_id', pypg.Integer, nullable=False)
 
 )
 
@@ -38,7 +38,7 @@ tokens = pypg.Table(
     'tokens',
     metadata,
     pypg.Column('id', pypg.Integer, primary_key=True),
-    pypg.Column('account_id', pypg.Integer, nullable=False, foreign_key=account.c.id),
+    pypg.Column('account_id', pypg.Integer, nullable=False),
     pypg.Column('token', pypg.String(200), nullable=False),
 )
 database = Database(database_URL)

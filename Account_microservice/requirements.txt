@@ -1,0 +1,9 @@
+asyncpg==0.29.0
+anyio==4.6.0
+databases[postgresql]==0.9.0
+fastapi==0.115.0
+SQLAlchemy==2.0.35
+uvicorn==0.31.0
+PyJWT==2.9.0
+starlette==0.38.6
+psycopg2-binary==2.9.9

@@ -1,9 +1,9 @@
 from fastapi import FastAPI
 from contextlib import asynccontextmanager
 
-from Account_microservice.db import metadata, database, engine
+from db import metadata, database, engine
 
-from Account_microservice.account import account_app
+from account import account_app
 
 
 metadata.create_all(engine)

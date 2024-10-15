@@ -1,0 +1,27 @@
+version: '3.12'
+
+services:
+  account_service:
+    build: ./Account_microservice
+    command: uvicorn main:app --reload --host 0.0.0.0 --port 20000
+    volumes:
+      - ./Account_microservice/:/app/
+    ports:
+      - 20001:20000
+    environment:
+      - ACCOUNT_USER=accountadmin
+      - ACCOUNT_PSWD=frrfeynflvbygfhjkm
+      - JWT_SECRET=ZIbcfm9xebY6LVh09uCT2SZe15ODZeMCeEBstKKoAFd5idwH9yoA1ViCybhQsO2nbj44mhHbjKFX2LH3ZTCsJzCsUGLfGXkhg05F
+  account_db:
+    image: postgres:17
+    volumes:
+      - postgres_data_account:/var/lib/postgresql/data
+    ports:
+      - 5433:5432
+    environment:
+      - POSTGRES_USER=accountadmin
+      - POSTGRES_PASSWORD=frrfeynflvbygfhjkm
+      - POSTGRES_DB=account_db_dev
+
+volumes:
+  postgres_data_account:

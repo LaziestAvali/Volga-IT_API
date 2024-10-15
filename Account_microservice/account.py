@@ -8,9 +8,8 @@ from starlette import status
 import datetime as dt
 import hashlib
 
-from Account_microservice.db_manager import get_user_by_id
-from Account_microservice.models import BaseUser, LoginUser, UpdateUser, FullUser
-from Account_microservice import db_manager
+from models import BaseUser, LoginUser, UpdateUser, FullUser
+import db_manager
 
 
 access_token_lifetime = 60*10
@@ -125,7 +124,7 @@ async def sign_up(response: Response, payload: LoginUser):
 
 @account_app.post('/api/Authentication/SignIn', status_code=status.HTTP_200_OK)
 async def sign_in(request: Request, response: Response, payload: BaseUser):
-    if request.cookies['jwt_refresh_token']:
+    if request.cookies.get('jwt_refresh_token', 0):
         await db_manager.delete_token(hashlib.sha512(request.cookies['jwt_refresh_token'].encode()).hexdigest())
         response.delete_cookie(key='jwt_access_token')
         response.delete_cookie(key='jwt_refresh_token')
@@ -245,7 +244,7 @@ async def get_doctors(request: Request, response: Response, nameFilter: str = ''
 @account_app.get('/api/Doctors/{id}', status_code=status.HTTP_200_OK)
 async def get_doctor(request: Request, response: Response, doctor_id: int):
     if await validate_access_token(request, response):
-        doctor = await get_user_by_id(doctor_id)
+        doctor = await db_manager.get_user_by_id(doctor_id)
         if (not doctor) or ('doctor' not in doctor['roles']):
             raise HTTPException(status.HTTP_404_NOT_FOUND)
         doctor = {'id': doctor_id,'firstName': doctor['firstName'],'lastName': doctor['lastName']}
