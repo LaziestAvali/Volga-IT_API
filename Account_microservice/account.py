@@ -109,7 +109,7 @@ async def authorization(token: str, role: list | tuple):
     raise HTTPException(status_code=status.HTTP_406_NOT_ACCEPTABLE)
 
 
-@account_app.post('/api/Authentication/SignUp')
+@account_app.post('/api/Authentication/SignUp', status_code=status.HTTP_201_CREATED)
 async def sign_up(response: Response, payload: LoginUser):
     payload = payload.model_dump()
     payload['password'] = hashlib.sha512(payload['password'].encode('utf-8')).hexdigest()
@@ -236,13 +236,13 @@ async def update_admin(request: Request, response: Response, body: FullUser, use
             HTTPException(status.HTTP_404_NOT_FOUND)
 
 
-@account_app.delete('/api/Accounts/{user_id}', status_code=status.HTTP_202_ACCEPTED)
+@account_app.delete('/api/Accounts/{user_id}', status_code=status.HTTP_200_OK)
 async def safe_delete(request: Request, response: Response, user_id: int):
     if validate_access_token(request, response):
         token = request.cookies.get('jwt_access_token')
         await authorization(token, ['admin'])
         if not await db_manager.soft_delete(user_id):
-            HTTPException(status.HTTP_404_NOT_FOUND)
+            HTTPException(status.HTTP_204_NO_CONTENT)
 
 
 @account_app.get('/api/Doctors', status_code=status.HTTP_200_OK)
@@ -252,12 +252,13 @@ async def get_doctors(request: Request, response: Response, nameFilter: str = ''
 
         return {'doctors': finish}
 
+
 @account_app.get('/api/Doctors/{id}', status_code=status.HTTP_200_OK)
 async def get_doctor(request: Request, response: Response, doctor_id: int):
     if await validate_access_token(request, response):
         doctor = await db_manager.get_user_by_id(doctor_id)
         if (not doctor) or ('doctor' not in doctor['roles']):
             raise HTTPException(status.HTTP_404_NOT_FOUND)
-        doctor = {'id': doctor_id,'firstName': doctor['firstName'],'lastName': doctor['lastName']}
+        doctor = {'id': doctor_id, 'firstName': doctor['firstName'], 'lastName': doctor['lastName']}
         return doctor
 

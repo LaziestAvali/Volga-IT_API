@@ -39,3 +39,42 @@ async def add_hospital(payload: dict):
     )
     await database.execute(query=query)
     return True
+
+
+async def update_hospital(hospital_id: int, payload: dict):
+    updating_hospital = list(await get_hospital_id(hospital_id))
+    if not updating_hospital:
+        return False
+    updating_hospital[1] = payload['name'] if payload['name'] is not None else updating_hospital[1]
+    updating_hospital[2] = payload['address'] if payload['address'] is not None else updating_hospital[2]
+    updating_hospital[3] = payload['contactPhone'] if payload['contactPhone'] is not None else updating_hospital[3]
+    hospital_query = (
+        hospitals.update()
+        .where(hospitals.c.id == hospital_id)
+        .values(updating_hospital[1:4])
+    )
+    await database.execute(query=hospital_query)
+    if updating_hospital[-1] is None:
+        return True
+    rooms_del_query = (
+        rooms.delete()
+        .where(rooms.c.hospital_id == hospital_id)
+    )
+    await database.execute(rooms_del_query)
+    for room in updating_hospital[-1]:
+        query = rooms.insert().values(hospital_id, room)
+        await database.execute(query=query)
+    return True
+
+
+async def soft_delete(hospital_id):
+    hospital_real = await get_hospital_id(hospital_id)
+    if not hospital_real:
+        return False
+    del_query = (
+        hospitals.update
+        .where(hospitals.c.id == hospital_id)
+        .values(is_disabled=True)
+    )
+    await database.execute(del_query)
+    return True
