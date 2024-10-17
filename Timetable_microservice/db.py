@@ -16,7 +16,7 @@ timetables = pypg.Table(
     pypg.Column('start', pypg.DateTime, nullable=False),
     pypg.Column('to', pypg.DateTime, nullable=False),
     pypg.Column('room', pypg.String(50), nullable=False),
-    pypg.Column('is_deleted', pypg.Boolean, nullable=False, default=False)
+    pypg.Column('is_disabled', pypg.Boolean, nullable=False, default=False)
 )
 
 appointment = pypg.Table(

@@ -12,11 +12,11 @@ class Timetable(BaseModel):
 
 
 class UpdateTimetable(Timetable):
-    hospitalId: Optional[int]
-    doctorId: Optional[int]
-    start: Optional[datetime]
-    to: Optional[datetime]
-    room: Optional[str]
+    hospitalId: Optional[int] = None
+    doctorId: Optional[int] = None
+    start: Optional[datetime] = None
+    to: Optional[datetime] = None
+    room: Optional[str] = None
 
 
 class TimePeriod(BaseModel):
