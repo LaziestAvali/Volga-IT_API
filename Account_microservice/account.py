@@ -61,9 +61,7 @@ async def validate_access_token(request: Request, response: Response) -> bool:
             response.set_cookie('jwt_access_token', new_access_token)
             response.set_cookie('jwt_refresh_token', new_refresh_token)
         # Если пользователь такого токена есть в бд, то возвращаю "Правда"
-        if await db_manager.user_in_db(payload):
-            return True
-        return False
+        return True
     except jwt.InvalidTokenError:
         raise HTTPException(status_code=status.HTTP_406_NOT_ACCEPTABLE)
 

@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from contextlib import asynccontextmanager
 
-from .db import metadata, database, engine
+from db import metadata, database, engine
 
 from account import account_app
 
