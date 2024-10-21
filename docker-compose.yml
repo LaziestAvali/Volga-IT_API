@@ -5,11 +5,11 @@ services:
     build:
       context: ./Account_microservice
       dockerfile: Dockerfile
-    command: uvicorn main:app --reload --host 0.0.0.0 --port 20000
+    command: uvicorn main:app --reload --host 0.0.0.0 --port 8000
     volumes:
       - ./Account_microservice/:/app/
     ports:
-      - 20000:20000
+      - 20000:8000
     environment:
       - ACCOUNT_USER=accountadmin
       - ACCOUNT_PSWD=frrfeynflvbygfhjkm
@@ -18,12 +18,34 @@ services:
     image: postgres:16
     volumes:
       - postgres_data_account:/var/lib/postgresql/data
-    ports:
-      - 30000:5432
     environment:
       - POSTGRES_USER=accountadmin
       - POSTGRES_PASSWORD=frrfeynflvbygfhjkm
       - POSTGRES_DB=account_db
+  hospital_service:
+    build:
+      context: ./Hospital_microservice
+      dockerfile: Dockerfile
+    command: uvicorn main:app --reload --host 0.0.0.0 --port 8000
+    volumes:
+      - ./Hospital_microservice/:/app/
+    ports:
+      - 20001:8000
+    environment:
+      - HOSPITAL_USER=hospitaladmin
+      - HOSPITAL_PSWD=gfhjkmlkzujcgblfntkmcrjq
+  hospital_db:
+    image: postgres:16
+    volumes:
+      - postgres_data_hospital:/var/lib/postgresql/data
+    ports:
+      - 30001:5432
+    environment:
+      - POSTGRES_USER=hospitaladmin
+      - POSTGRES_PASSWORD=gfhjkmlkzujcgblfntkmcrjq
+      - POSTGRES_DB=hospital_db
+
 
 volumes:
   postgres_data_account:
+  postgres_data_hospital:
