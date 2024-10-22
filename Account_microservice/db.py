@@ -12,7 +12,7 @@ account = pypg.Table(
     metadata,
     pypg.Column('id', pypg.Integer, primary_key=True),
     pypg.Column('login', pypg.String(20), nullable=False),
-    pypg.Column('password', pypg.String(50), nullable=False),
+    pypg.Column('password', pypg.String(128), nullable=False),
     pypg.Column('firstName', pypg.String(50), nullable=False),
     pypg.Column('lastName', pypg.String(50), nullable=False),
     pypg.Column('is_disabled', pypg.Boolean, nullable=False, default=False)

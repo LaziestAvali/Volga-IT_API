@@ -18,6 +18,8 @@ services:
     image: postgres:16
     volumes:
       - postgres_data_account:/var/lib/postgresql/data
+    ports:
+      - 30000:5432
     environment:
       - POSTGRES_USER=accountadmin
       - POSTGRES_PASSWORD=frrfeynflvbygfhjkm

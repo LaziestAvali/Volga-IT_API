@@ -86,7 +86,7 @@ async def get_doctor(start: int, count: int, name_filter: str):
         .select_from(account_role)
         .join(account, account_role.c.account_id == account.c.id)
         .join(role, account_role.c.role_id == role.c.id)
-        .where((role.c.name == 'doctor') & (account.c.is_disabled == False) & (full_name.icontains(name_filter)))
+        .where((role.c.name == 'Doctor') & (account.c.is_disabled == False) & (full_name.icontains(name_filter)))
         .order_by(account.c.id)
         .subquery()
     )

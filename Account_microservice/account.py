@@ -51,7 +51,7 @@ async def validate_access_token(request: Request, response: Response) -> bool:
         payload = jwt.decode(access_token, pyenv['JWT_SECRET'], algorithms=['HS256'])
 
         # Любой токен кроме аксес будет отклонён
-        if payload['type'] != 'access':
+        if payload['type'] != 'access' or payload['iss'] != 'account_microservice':
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Invalid token')
 
         # Проверка если токен просрочен. Если да, запрашиваю его обновление
@@ -103,7 +103,7 @@ async def authorization(token: str, role: list | tuple):
     user = await db_manager.get_user(decoded_token)
     for user_role in user['roles']:
         if user_role in role:
-            return
+            return True
     raise HTTPException(status_code=status.HTTP_406_NOT_ACCEPTABLE)
 
 
@@ -111,7 +111,7 @@ async def authorization(token: str, role: list | tuple):
 async def sign_up(response: Response, payload: LoginUser):
     payload = payload.model_dump()
     payload['password'] = hashlib.sha512(payload['password'].encode('utf-8')).hexdigest()
-    payload = payload | {'roles': ['user']}
+    payload = payload | {'roles': ['User']}
     if not await db_manager.add_user(payload):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='User already exists')
     response.set_cookie(key='jwt_access_token', value=await create_token('access', payload), httponly=True)
@@ -128,7 +128,7 @@ async def sign_in(request: Request, response: Response, payload: BaseUser):
         response.delete_cookie(key='jwt_refresh_token')
     payload = payload.model_dump()
     payload['password'] = hashlib.sha512(payload['password'].encode('utf-8')).hexdigest()
-    payload = payload | {'roles': ['user']}
+    payload = payload | {'roles': ['User']}
     if await db_manager.user_in_db(payload):
         payload = await db_manager.get_user(payload)
         response.set_cookie(key='jwt_access_token', value=await create_token('access', payload), httponly=True)
@@ -181,7 +181,7 @@ async def update(request: Request, response: Response, payload: UpdateUser):
 async def get_accounts(request: Request, response: Response, start: int = 1, count: int = -1):
     if await validate_access_token(request, response):
         token = request.cookies.get('jwt_access_token')
-        await authorization(token, ['admin'])
+        await authorization(token, ['Admin'])
         finish = []
         if count == -1:
             user_id = 0
@@ -199,16 +199,12 @@ async def get_accounts(request: Request, response: Response, start: int = 1, cou
                 user = await db_manager.get_user_by_id(start+user_id)
                 if not user:
                     break
-                user_id += 1
                 if user == 'disabled':
                     continue
+                user_id += 1
+                finish.append(user)
                 if user_id == count:
                     break
-                finish.append(user)
-
-
-                finish.append(user)
-
         return {'users': finish}
 
 
@@ -216,10 +212,9 @@ async def get_accounts(request: Request, response: Response, start: int = 1, cou
 async def new_account(request: Request, response: Response, body: FullUser):
     if validate_access_token(request, response):
         token = request.cookies.get('jwt_access_token')
-        await authorization(token, ['admin'])
+        await authorization(token, ['Admin'])
         payload = body.model_dump()
         payload['password'] = hashlib.sha512(payload['password'].encode('utf-8')).hexdigest()
-        payload = payload | {'roles': ['user']}
         if not await db_manager.add_user(payload):
             HTTPException(status.HTTP_400_BAD_REQUEST)
 
@@ -228,7 +223,7 @@ async def new_account(request: Request, response: Response, body: FullUser):
 async def update_admin(request: Request, response: Response, body: FullUser, user_id: int):
     if validate_access_token(request, response):
         token = request.cookies.get('jwt_access_token')
-        await authorization(token, ['admin'])
+        await authorization(token, ['Admin'])
         payload = body.model_dump()
         if not await db_manager.update_user_by_id(user_id, payload):
             HTTPException(status.HTTP_404_NOT_FOUND)
@@ -238,7 +233,7 @@ async def update_admin(request: Request, response: Response, body: FullUser, use
 async def safe_delete(request: Request, response: Response, user_id: int):
     if validate_access_token(request, response):
         token = request.cookies.get('jwt_access_token')
-        await authorization(token, ['admin'])
+        await authorization(token, ['Admin'])
         if not await db_manager.soft_delete(user_id):
             HTTPException(status.HTTP_204_NO_CONTENT)
 
