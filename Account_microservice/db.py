@@ -40,5 +40,6 @@ tokens = pypg.Table(
     pypg.Column('id', pypg.Integer, primary_key=True),
     pypg.Column('account_id', pypg.Integer, nullable=False),
     pypg.Column('token', pypg.String(200), nullable=False),
+    pypg.Column('is_disabled', pypg.Boolean, nullable=False, default=False)
 )
 database = Database(database_URL)

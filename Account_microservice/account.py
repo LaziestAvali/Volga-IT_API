@@ -8,11 +8,11 @@ from starlette import status
 import datetime as dt
 import hashlib
 
-from models import BaseUser, LoginUser, UpdateUser, FullUser
+from models import *
 import db_manager
 
 
-access_token_lifetime = 60*10
+access_token_lifetime = 60*30
 refresh_token_lifetime = 60*60*24*7
 account_app = APIRouter()
 
@@ -38,10 +38,10 @@ async def create_token(types: Literal['access', 'refresh'], payload: dict) -> st
     return str(jwt.encode(payload, pyenv['JWT_SECRET'], algorithm='HS256'))
 
 
-async def validate_access_token(request: Request, response: Response) -> bool:
+async def validate_access_token(request: Request):
     try:
         # Получаю токены из куки
-        access_token = request.cookies.get('jwt_access_token')
+        access_token = request.headers.get('jwt_access_token')
 
         # Если их нет - 401
         if not access_token:
@@ -56,10 +56,7 @@ async def validate_access_token(request: Request, response: Response) -> bool:
 
         # Проверка если токен просрочен. Если да, запрашиваю его обновление
         if payload['nbf'] - dt.datetime.now(tz=dt.timezone.utc).timestamp() >= access_token_lifetime:
-            refresh_token = request.cookies.get('jwt_refresh_token')
-            new_access_token, new_refresh_token = await update_tokens(refresh_token)
-            response.set_cookie('jwt_access_token', new_access_token)
-            response.set_cookie('jwt_refresh_token', new_refresh_token)
+            raise HTTPException(status_code=status.HTTP_426_UPGRADE_REQUIRED)
         # Если пользователь такого токена есть в бд, то возвращаю "Правда"
         return True
     except jwt.InvalidTokenError:
@@ -84,7 +81,9 @@ async def update_tokens(token):
         # Проверяю, что данный токен не истёк
         if payload['nbf'] - dt.datetime.now(tz=dt.timezone.utc).timestamp() >= refresh_token_lifetime:
             raise HTTPException(status_code=status.HTTP_426_UPGRADE_REQUIRED)
-
+        # Проверяю, что пользователь существует
+        if not await db_manager.user_in_db(payload):
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
         # Получаю два новых токена
         new_access_token = await create_token('access', payload)
         new_refresh_token = await create_token('refresh', payload)
@@ -107,70 +106,64 @@ async def authorization(token: str, role: list | tuple):
     raise HTTPException(status_code=status.HTTP_406_NOT_ACCEPTABLE)
 
 
-@account_app.post('/api/Authentication/SignUp', status_code=status.HTTP_201_CREATED)
+@account_app.post('/api/Authentication/SignUp', status_code=status.HTTP_201_CREATED, response_model=Tokens)
 async def sign_up(response: Response, payload: LoginUser):
     payload = payload.model_dump()
     payload['password'] = hashlib.sha512(payload['password'].encode('utf-8')).hexdigest()
     payload = payload | {'roles': ['User']}
     if not await db_manager.add_user(payload):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='User already exists')
-    response.set_cookie(key='jwt_access_token', value=await create_token('access', payload), httponly=True)
+    access_token = await create_token('access', payload)
     refresh_token = await create_token('refresh', payload)
     await db_manager.add_token(hashlib.sha512(refresh_token.encode()).hexdigest(), payload)
-    response.set_cookie(key='jwt_refresh_token', value=refresh_token, httponly=True)
+    response.headers.append(key='jwt_refresh_token', value=refresh_token)
+    return {'jwt_access_token': access_token, 'jwt_refresh_token': refresh_token}
 
 
-@account_app.post('/api/Authentication/SignIn', status_code=status.HTTP_200_OK)
-async def sign_in(request: Request, response: Response, payload: BaseUser):
-    if request.cookies.get('jwt_refresh_token', 0):
-        await db_manager.delete_token(hashlib.sha512(request.cookies['jwt_refresh_token'].encode()).hexdigest())
-        response.delete_cookie(key='jwt_access_token')
-        response.delete_cookie(key='jwt_refresh_token')
+@account_app.post('/api/Authentication/SignIn', status_code=status.HTTP_200_OK, response_model=Tokens)
+async def sign_in(payload: BaseUser):
     payload = payload.model_dump()
     payload['password'] = hashlib.sha512(payload['password'].encode('utf-8')).hexdigest()
     payload = payload | {'roles': ['User']}
     if await db_manager.user_in_db(payload):
         payload = await db_manager.get_user(payload)
-        response.set_cookie(key='jwt_access_token', value=await create_token('access', payload), httponly=True)
+        access_token = await create_token('access', payload)
         refresh_token = await create_token('refresh', payload)
         await db_manager.add_token(hashlib.sha512(refresh_token.encode()).hexdigest(), payload)
-        response.set_cookie(key='jwt_refresh_token', value=refresh_token, httponly=True)
+        return {'jwt_access_token': access_token, 'jwt_refresh_token': refresh_token}
     else:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
 
 
 @account_app.put('/api/Authentication/SignOut', status_code=status.HTTP_200_OK)
-async def sign_out(request: Request, response: Response):
-    if validate_access_token(request, response):
+async def sign_out(request: Request):
+    if validate_access_token(request):
         await db_manager.delete_token(hashlib.sha512(request.cookies['jwt_refresh_token'].encode()).hexdigest())
-        response.delete_cookie(key='jwt_access_token')
-        response.delete_cookie(key='jwt_refresh_token')
 
 
-@account_app.get('/api/Authentication/Validate', status_code=status.HTTP_200_OK)
-async def validate(request: Request, response: Response):
-    if await validate_access_token(request, response):
+@account_app.get('/api/Authentication/Validate', status_code=status.HTTP_200_OK, response_model=Success)
+async def validate(request: Request):
+    if await validate_access_token(request):
         return {'success': True}
     return {'success': False}
 
 
-@account_app.post('/api/Authentication/Refresh', status_code=status.HTTP_200_OK)
-async def refresh(request: Request, response: Response):
+@account_app.post('/api/Authentication/Refresh', status_code=status.HTTP_200_OK, response_model=Tokens)
+async def refresh(request: Request):
     new_access_token, new_refresh_token = await update_tokens(request.cookies.get('jwt_refresh_token'))
-    response.set_cookie(key='jwt_access_token', value=new_access_token, httponly=True)
-    response.set_cookie(key='jwt_refresh_token', value=new_refresh_token, httponly=True)
+    return {'jwt_access_token': new_access_token, 'jwt_refresh_token': new_refresh_token}
 
 
 @account_app.get('/api/Accounts/Me', status_code=status.HTTP_200_OK)
-async def get_info(request: Request, response: Response):
-    if await validate_access_token(request, response):
-        token = request.cookies.get('jwt_access_token')
+async def get_info(request: Request):
+    if await validate_access_token(request):
+        token = request.headers.get('jwt_access_token')
         return await db_manager.get_user(jwt.decode(token, pyenv['JWT_SECRET'], algorithms=['HS256']))
 
 
 @account_app.put('/api/Accounts/Update', status_code=status.HTTP_200_OK)
-async def update(request: Request, response: Response, payload: UpdateUser):
-    if await validate_access_token(request, response):
+async def update(request: Request, payload: UpdateUser):
+    if await validate_access_token(request):
         payload = payload.model_dump()
         token = request.cookies.get('jwt_access_token')
         decoded_token = jwt.decode(token, pyenv['JWT_SECRET'], algorithms=['HS256'])
@@ -178,8 +171,8 @@ async def update(request: Request, response: Response, payload: UpdateUser):
 
 
 @account_app.get('/api/Accounts', status_code=status.HTTP_200_OK)
-async def get_accounts(request: Request, response: Response, start: int = 1, count: int = -1):
-    if await validate_access_token(request, response):
+async def get_accounts(request: Request, start: int = 1, count: int = -1):
+    if await validate_access_token(request):
         token = request.cookies.get('jwt_access_token')
         await authorization(token, ['Admin'])
         finish = []
@@ -209,8 +202,8 @@ async def get_accounts(request: Request, response: Response, start: int = 1, cou
 
 
 @account_app.post('/api/Accounts', status_code=status.HTTP_201_CREATED)
-async def new_account(request: Request, response: Response, body: FullUser):
-    if validate_access_token(request, response):
+async def new_account(request: Request, body: FullUser):
+    if validate_access_token(request):
         token = request.cookies.get('jwt_access_token')
         await authorization(token, ['Admin'])
         payload = body.model_dump()
@@ -220,8 +213,8 @@ async def new_account(request: Request, response: Response, body: FullUser):
 
 
 @account_app.put('/api/Accounts/{user_id}', status_code=status.HTTP_200_OK)
-async def update_admin(request: Request, response: Response, body: FullUser, user_id: int):
-    if validate_access_token(request, response):
+async def update_admin(request: Request, body: FullUser, user_id: int):
+    if validate_access_token(request):
         token = request.cookies.get('jwt_access_token')
         await authorization(token, ['Admin'])
         payload = body.model_dump()
@@ -230,8 +223,8 @@ async def update_admin(request: Request, response: Response, body: FullUser, use
 
 
 @account_app.delete('/api/Accounts/{user_id}', status_code=status.HTTP_200_OK)
-async def safe_delete(request: Request, response: Response, user_id: int):
-    if validate_access_token(request, response):
+async def safe_delete(request: Request, user_id: int):
+    if validate_access_token(request):
         token = request.cookies.get('jwt_access_token')
         await authorization(token, ['Admin'])
         if not await db_manager.soft_delete(user_id):
@@ -239,16 +232,16 @@ async def safe_delete(request: Request, response: Response, user_id: int):
 
 
 @account_app.get('/api/Doctors', status_code=status.HTTP_200_OK)
-async def get_doctors(request: Request, response: Response, nameFilter: str = '', start: int = 0, count: int = -1):
-    if await validate_access_token(request, response):
+async def get_doctors(request: Request, nameFilter: str = '', start: int = 0, count: int = -1):
+    if await validate_access_token(request):
         finish = await db_manager.get_doctor(start, count, nameFilter)
 
         return {'doctors': finish}
 
 
 @account_app.get('/api/Doctors/{id}', status_code=status.HTTP_200_OK)
-async def get_doctor(request: Request, response: Response, doctor_id: int):
-    if await validate_access_token(request, response):
+async def get_doctor(request: Request, doctor_id: int):
+    if await validate_access_token(request):
         doctor = await db_manager.get_user_by_id(doctor_id)
         if (not doctor) or ('doctor' not in doctor['roles']):
             raise HTTPException(status.HTTP_404_NOT_FOUND)

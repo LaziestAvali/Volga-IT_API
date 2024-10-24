@@ -2,6 +2,11 @@ from pydantic import BaseModel
 from typing import List, Optional
 
 
+class Tokens(BaseModel):
+    jwt_access_token: str
+    jwt_refresh_token: str
+
+
 class BaseUser(BaseModel):
     login: str
     password: str
@@ -29,3 +34,7 @@ class UpdateFullUser(FullUser):
     firstName: Optional[str] = None
     lastName: Optional[str] = None
     roles: Optional[List[str]] = None
+
+
+class Success(BaseModel):
+    success: bool
