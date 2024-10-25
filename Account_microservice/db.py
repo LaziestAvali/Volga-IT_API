@@ -15,23 +15,8 @@ account = pypg.Table(
     pypg.Column('password', pypg.String(128), nullable=False),
     pypg.Column('firstName', pypg.String(50), nullable=False),
     pypg.Column('lastName', pypg.String(50), nullable=False),
+    pypg.Column('roles', pypg.ARRAY(pypg.String), nullable=False, default=('User')),
     pypg.Column('is_disabled', pypg.Boolean, nullable=False, default=False)
-)
-
-role = pypg.Table(
-    'role',
-    metadata,
-    pypg.Column('id', pypg.Integer, primary_key=True),
-    pypg.Column('name', pypg.String(50), nullable=False),
-)
-
-account_role = pypg.Table(
-    'account_role',
-    metadata,
-    pypg.Column('id', pypg.Integer, primary_key=True),
-    pypg.Column('account_id', pypg.Integer, nullable=False),
-    pypg.Column('role_id', pypg.Integer, nullable=False)
-
 )
 
 tokens = pypg.Table(

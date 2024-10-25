@@ -4,18 +4,19 @@ from db import hospitals, rooms, database
 
 
 async def get_all_hospital(start: int, count: int):
-    hospitals_subquery = hospitals.select().where(hospitals.c.is_disabled == 0).subquery()
+    hospitals_subquery = hospitals.select().where(hospitals.c.is_disabled == False).subquery()
     hospitals_query = pypg.select(hospitals_subquery).offset(start)
-    if count != -1:
+    if count > -1:
         hospitals_query = hospitals_query.limit(count)
     hospitals_list = await database.fetch_all(hospitals_query)
-    for i in hospitals_list:
-        hospitals_list[i] = tuple(hospitals_list[i].values())[:2]
-    return hospitals_list
+    for i in range(len(hospitals_list)):
+        raw_data = tuple(hospitals_list[i].values())
+        hospitals_list[i] = {'id': raw_data[0], 'name': raw_data[1]}
+    return tuple(hospitals_list)
 
 
 async def get_hospital_id(hospital_id: int):
-    query = hospitals.select().where((hospitals.c.id == hospital_id) & (hospitals.c.is_disabled == 0))
+    query = hospitals.select().where((hospitals.c.id == hospital_id) & (hospitals.c.is_disabled == False))
     hospital_list = await database.fetch_one(query)
     return tuple(hospital_list.values())
 

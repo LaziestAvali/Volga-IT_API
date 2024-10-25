@@ -1,6 +1,6 @@
 import sqlalchemy as pypg
 
-from db import account, role, account_role, tokens, database
+from db import account, tokens, database
 
 
 async def add_token(token: str, payload: dict):
@@ -28,23 +28,20 @@ async def validate_refresh_token(token: str, payload: dict):
 
 
 async def delete_token(token: str):
-    query = (
-        tokens.delete().where(tokens.c.token == token)
+    del_query = (
+        tokens.update()
+        .where(tokens.c.token == token)
+        .values(is_disabled=True)
     )
-    await database.execute(query=query)
+    await database.execute(query=del_query)
 
 
 async def add_user(payload: dict):
     account_id = await database.fetch_one(account.select().where((account.c.login == payload['login']) & (account.c.is_disabled == False)))
     if account_id:
         return False
-    query = account.insert().values(login=payload['login'], password=payload['password'], firstName=payload['firstName'], lastName=payload['lastName'], is_disabled=False)
+    query = account.insert().values(login=payload['login'], password=payload['password'], firstName=payload['firstName'], lastName=payload['lastName'], roles=tuple(payload['roles']),  is_disabled=False)
     await database.execute(query=query)
-    account_id = await database.execute(account.select().where(account.c.login == payload['login']))
-    for user_role in payload['roles']:
-        role_id = await database.execute(role.select().where(role.c.name==user_role))
-        query = pypg.insert(account_role).values(account_id=account_id, role_id=role_id)
-        await database.execute(query=query)
     return True
 
 
@@ -62,38 +59,24 @@ async def user_in_db(payload: dict):
 
 
 async def get_user(payload: dict):
-    roles = (
-        role.select()
-        .select_from(account_role)
-        .join(account, account_role.c.account_id == account.c.id)
-        .join(role, account_role.c.role_id == role.c.id)
-        .where((account.c.login == payload['login']) & (account.c.is_disabled == False))
-    )
-    roles_list = await database.fetch_all(query=roles)
-    for i in range(len(roles_list)):
-        roles_list[i] = tuple(roles_list[i].values())[1]
     main_info = await database.fetch_one(query=account.select().where((account.c.login == payload['login']) & (account.c.is_disabled == False)))
-    main_info = tuple(main_info.values())
-    main_info = {'login': main_info[1], 'password': main_info[2], 'firstName': main_info[3], 'lastName': main_info[4]}
-    full_user = main_info | {'roles': roles_list}
-    return full_user
+    main_info = tuple(main_info.values())[:6]
+    main_info = {'login': main_info[1], 'password': main_info[2], 'firstName': main_info[3], 'lastName': main_info[4], 'roles': list(main_info[5])}
+    return main_info
 
 
 async def get_doctor(start: int, count: int, name_filter: str):
     full_name = account.c.firstName + ' ' + account.c.lastName
     doctor_subquery = (
         account.select()
-        .select_from(account_role)
-        .join(account, account_role.c.account_id == account.c.id)
-        .join(role, account_role.c.role_id == role.c.id)
-        .where((role.c.name == 'Doctor') & (account.c.is_disabled == False) & (full_name.icontains(name_filter)))
+        .where((account.c.roles.contains('Doctor')) & (account.c.is_disabled == False) & (full_name.icontains(name_filter)))
         .order_by(account.c.id)
         .subquery()
     )
     doctor_query = (
         pypg.select(doctor_subquery).offset(start)
     )
-    if count != -1:
+    if count >= -1:
         doctor_query = doctor_query.limit(count)
     doctor_list = await database.fetch_all(query=doctor_query)
     for i in range(len(doctor_list)):
@@ -110,20 +93,8 @@ async def get_user_by_id(user_id: int):
     main_info = tuple(main_info.values())
     if main_info[-1]:
         return 'disabled'
-    roles = (
-        role.select()
-        .select_from(account_role)
-        .join(account, account_role.c.account_id == account.c.id)
-        .join(role, account_role.c.role_id == role.c.id)
-        .where((account.c.id == user_id) & (account.c.is_disabled == False))
-    )
-    roles_list = await database.fetch_all(query=roles)
-    for i in range(len(roles_list)):
-        roles_list[i] = tuple(roles_list[i].values())[1]
-
-    main_info = {'login': main_info[1], 'password': main_info[2], 'firstName': main_info[3], 'lastName': main_info[4]}
-    full_user = main_info | {'roles': roles_list}
-    return full_user
+    main_info = {'login': main_info[1], 'password': main_info[2], 'firstName': main_info[3], 'lastName': main_info[4], 'roles': list(main_info[5])}
+    return main_info
 
 
 async def update_user(token: dict, payload: dict):
@@ -150,23 +121,13 @@ async def update_user_by_id(user_id: int, payload: dict):
     user['password'] = payload['password'] if payload['password'] else user['password']
     user['firstName'] = payload['firstName'] if payload['firstName'] else user['firstName']
     user['lastName'] = payload['lastName'] if payload['lastName'] else user['lastName']
+    user['roles'] = payload['roles'] if payload['roles'] else user['roles']
     user_query = (
         account.update()
         .where(account.c.id == user_id)
         .values(user)
     )
-    updated_user_id = await database.execute(query=user_query)
-    account_role_del_query = (
-        account_role.delete()
-        .where(account_role.c.account_id == updated_user_id)
-    )
-    await database.execute(query=account_role_del_query)
-
-    for user_role in payload['roles']:
-        role_id = await database.execute(role.select().where(role.c.name==user_role))
-        query = pypg.insert(account_role).values(account_id=updated_user_id, role_id=role_id)
-        await database.execute(query=query)
-
+    database.execute(query=user_query)
     return True
 
 

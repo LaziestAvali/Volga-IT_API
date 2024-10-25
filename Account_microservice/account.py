@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Request, Response
+from fastapi import APIRouter, HTTPException, Request
 
 from uuid import uuid4
 from typing import Literal
@@ -75,24 +75,19 @@ async def update_tokens(token):
         if not await db_manager.validate_refresh_token(hashlib.sha512(token.encode()).hexdigest(), payload):
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
 
-        # Если существует, удаляю старый токен из БД
-        await db_manager.delete_token(hashlib.sha512(token.encode()).hexdigest())
-
         # Проверяю, что данный токен не истёк
         if payload['nbf'] - dt.datetime.now(tz=dt.timezone.utc).timestamp() >= refresh_token_lifetime:
+            # Если существует, удаляю старый токен из БД
+            await db_manager.delete_token(hashlib.sha512(token.encode()).hexdigest())
             raise HTTPException(status_code=status.HTTP_426_UPGRADE_REQUIRED)
         # Проверяю, что пользователь существует
         if not await db_manager.user_in_db(payload):
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
         # Получаю два новых токена
         new_access_token = await create_token('access', payload)
-        new_refresh_token = await create_token('refresh', payload)
-
-        # Добавляю новый токен обновления в БД
-        await db_manager.add_token(hashlib.sha512(new_refresh_token.encode()).hexdigest(), payload)
 
         # Возвращаю два новых токена
-        return new_access_token, new_refresh_token
+        return new_access_token
     except jwt.InvalidTokenError:
         raise HTTPException(status_code=status.HTTP_406_NOT_ACCEPTABLE)
 
@@ -107,7 +102,7 @@ async def authorization(token: str, role: list | tuple):
 
 
 @account_app.post('/api/Authentication/SignUp', status_code=status.HTTP_201_CREATED, response_model=Tokens)
-async def sign_up(response: Response, payload: LoginUser):
+async def sign_up(payload: LoginUser):
     payload = payload.model_dump()
     payload['password'] = hashlib.sha512(payload['password'].encode('utf-8')).hexdigest()
     payload = payload | {'roles': ['User']}
@@ -116,7 +111,6 @@ async def sign_up(response: Response, payload: LoginUser):
     access_token = await create_token('access', payload)
     refresh_token = await create_token('refresh', payload)
     await db_manager.add_token(hashlib.sha512(refresh_token.encode()).hexdigest(), payload)
-    response.headers.append(key='jwt_refresh_token', value=refresh_token)
     return {'jwt_access_token': access_token, 'jwt_refresh_token': refresh_token}
 
 
@@ -132,7 +126,7 @@ async def sign_in(payload: BaseUser):
         await db_manager.add_token(hashlib.sha512(refresh_token.encode()).hexdigest(), payload)
         return {'jwt_access_token': access_token, 'jwt_refresh_token': refresh_token}
     else:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
 
 
 @account_app.put('/api/Authentication/SignOut', status_code=status.HTTP_200_OK)
@@ -141,17 +135,17 @@ async def sign_out(request: Request):
         await db_manager.delete_token(hashlib.sha512(request.cookies['jwt_refresh_token'].encode()).hexdigest())
 
 
-@account_app.get('/api/Authentication/Validate', status_code=status.HTTP_200_OK, response_model=Success)
-async def validate(request: Request):
+@account_app.get('/api/Authentication/Validate', status_code=status.HTTP_200_OK)
+async def validate_token(request: Request):
     if await validate_access_token(request):
         return {'success': True}
     return {'success': False}
 
 
-@account_app.post('/api/Authentication/Refresh', status_code=status.HTTP_200_OK, response_model=Tokens)
+@account_app.post('/api/Authentication/Refresh', status_code=status.HTTP_200_OK)
 async def refresh(request: Request):
-    new_access_token, new_refresh_token = await update_tokens(request.cookies.get('jwt_refresh_token'))
-    return {'jwt_access_token': new_access_token, 'jwt_refresh_token': new_refresh_token}
+    new_access_token = await update_tokens(request.headers.get('jwt_refresh_token'))
+    return {'jwt_access_token': new_access_token}
 
 
 @account_app.get('/api/Accounts/Me', status_code=status.HTTP_200_OK)
@@ -232,7 +226,7 @@ async def safe_delete(request: Request, user_id: int):
 
 
 @account_app.get('/api/Doctors', status_code=status.HTTP_200_OK)
-async def get_doctors(request: Request, nameFilter: str = '', start: int = 0, count: int = -1):
+async def get_doctors(request: Request, nameFilter: str = ' ', start: int = 0, count: int = -1):
     if await validate_access_token(request):
         finish = await db_manager.get_doctor(start, count, nameFilter)
 
