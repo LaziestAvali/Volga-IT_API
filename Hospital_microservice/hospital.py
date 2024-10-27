@@ -20,15 +20,19 @@ def validate(request: Request):
         case 426:
             raise HTTPException(status_code=status.HTTP_426_UPGRADE_REQUIRED)
     r_json = r.json()
-    # ПРОВЕРИТЬ, УБРАТЬ ПО НЕОБХОДИМОСТИ
-    print(r_json)
     return r_json['success']
+
+def authorization(request: Request):
+    token = request.headers.get('jwt_access_token')
+    r = req.get('http://account_service:8000/api/Accounts/Me', headers={'jwt_access_token': token})
+    r_json = r.json()
+    return r_json['roles']
 
 @hospital_app.get('/api/Hospitals')
 async def get_hospital(request: Request, start: int = 0, count: int = -1):
     if not validate(request):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
-    return {'hospital_ids': await db_manager.get_all_hospital(start, count)}
+    return {'hospitals': await db_manager.get_all_hospital(start, count)}
 
 
 @hospital_app.get('/api/Hospitals/{hospital_id}')
@@ -52,9 +56,9 @@ async def get_rooms(request: Request, hospital_id: int):
 async def add_hospital(request: Request, hospital: Hospital):
     if not validate(request):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
-    if 'admin' not in req.get('http://account_service:8000/api/Accounts/Me').json()['roles']:
+    if 'Admin' not in authorization(request):
         raise HTTPException(status_code=status.HTTP_406_NOT_ACCEPTABLE)
-    if not db_manager.add_hospital(hospital.model_dump()):
+    if not await db_manager.add_hospital(hospital.model_dump()):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST)
 
 
@@ -62,7 +66,7 @@ async def add_hospital(request: Request, hospital: Hospital):
 async def update_hospital(request: Request, hospital: UpdateHospital, hospital_id: int):
     if not validate(request):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
-    if 'admin' not in req.get('http://account_service:8000/api/Accounts/Me').json()['roles']:
+    if 'Admin' not in authorization(request):
         raise HTTPException(status_code=status.HTTP_406_NOT_ACCEPTABLE)
     if not await db_manager.update_hospital(hospital_id, hospital.model_dump()):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
@@ -72,7 +76,7 @@ async def update_hospital(request: Request, hospital: UpdateHospital, hospital_i
 async def delete_hospital(request: Request, hospital_id: int):
     if not validate(request):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
-    if 'admin' not in req.get('http://account_service:8000/api/Accounts/Me').json()['roles']:
+    if 'Admin' not in authorization(request):
         raise HTTPException(status_code=status.HTTP_406_NOT_ACCEPTABLE)
-    if not db_manager.soft_delete(hospital_id):
+    if not await db_manager.soft_delete(hospital_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)

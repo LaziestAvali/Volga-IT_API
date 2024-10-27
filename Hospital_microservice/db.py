@@ -14,15 +14,8 @@ hospitals = pypg.Table(
     pypg.Column('name', pypg.String(50), nullable=False),
     pypg.Column('address', pypg.String(100), nullable=False),
     pypg.Column('contactPhone', pypg.String(20), nullable=False),
+    pypg.Column('rooms', pypg.ARRAY(pypg.String(50)), nullable=False),
     pypg.Column('is_disabled', pypg.Boolean, nullable=False, default=False)
-)
-
-rooms = pypg.Table(
-    'rooms',
-    metadata,
-    pypg.Column('id', pypg.Integer, primary_key=True, nullable=False),
-    pypg.Column('hospital_id', pypg.Integer, nullable=False),
-    pypg.Column('name', pypg.String(50), nullable=False),
 )
 
 database = Database(database_URL)

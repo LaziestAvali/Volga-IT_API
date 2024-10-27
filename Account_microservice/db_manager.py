@@ -8,7 +8,7 @@ async def add_token(token: str, payload: dict):
     account_id = await database.execute(user_subquery)
     token_query = (
         tokens.insert()
-        .values(account_id=account_id, token=token)
+        .values(account_id=account_id, token=token, is_disabled=False)
     )
     await database.execute(query=token_query)
 
@@ -61,7 +61,7 @@ async def user_in_db(payload: dict):
 async def get_user(payload: dict):
     main_info = await database.fetch_one(query=account.select().where((account.c.login == payload['login']) & (account.c.is_disabled == False)))
     main_info = tuple(main_info.values())[:6]
-    main_info = {'login': main_info[1], 'password': main_info[2], 'firstName': main_info[3], 'lastName': main_info[4], 'roles': list(main_info[5])}
+    main_info = {'id':main_info[0], 'login': main_info[1], 'password': main_info[2], 'firstName': main_info[3], 'lastName': main_info[4], 'roles': list(main_info[5])}
     return main_info
 
 
@@ -69,7 +69,7 @@ async def get_doctor(start: int, count: int, name_filter: str):
     full_name = account.c.firstName + ' ' + account.c.lastName
     doctor_subquery = (
         account.select()
-        .where((account.c.roles.contains('Doctor')) & (account.c.is_disabled == False) & (full_name.icontains(name_filter)))
+        .where((account.c.roles.contains(['Doctor'])) & (account.c.is_disabled == False) & (full_name.icontains(name_filter)))
         .order_by(account.c.id)
         .subquery()
     )

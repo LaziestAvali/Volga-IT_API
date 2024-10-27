@@ -6,6 +6,8 @@ services:
       context: ./Account_microservice
       dockerfile: Dockerfile
     command: uvicorn main:app --reload --host 0.0.0.0 --port 8000
+    depends_on:
+      - account_db
     volumes:
       - ./Account_microservice/:/app/
     ports:
@@ -18,6 +20,7 @@ services:
     image: postgres:16
     volumes:
       - postgres_data_account:/var/lib/postgresql/data
+      - ./Account_microservice/db_init.sql:/docker-entrypoint-initdb.d/db_init.sql
     ports:
       - 30000:5432
     environment:
@@ -29,6 +32,8 @@ services:
       context: ./Hospital_microservice
       dockerfile: Dockerfile
     command: uvicorn main:app --reload --host 0.0.0.0 --port 8000
+    depends_on:
+      - hospital_db
     volumes:
       - ./Hospital_microservice/:/app/
     ports:
@@ -40,14 +45,66 @@ services:
     image: postgres:16
     volumes:
       - postgres_data_hospital:/var/lib/postgresql/data
+      - ./Hospital_microservice/db_init.sql:/docker-entrypoint-initdb.d/db_init.sql
     ports:
       - 30001:5432
     environment:
       - POSTGRES_USER=hospitaladmin
       - POSTGRES_PASSWORD=gfhjkmlkzujcgblfntkmcrjq
       - POSTGRES_DB=hospital_db
-
+  timetable_service:
+    build:
+      context: ./Timetable_microservice
+      dockerfile: Dockerfile
+    command: uvicorn main:app --reload --host 0.0.0.0 --port 8000
+    depends_on:
+      - timetable_db
+    volumes:
+      - ./Timetable_microservice/:/app/
+    ports:
+      - 20002:8000
+    environment:
+      - TIMETABLE_USER=timetableadmin
+      - TIMETABLE_PSWD=totjlbyjxtymjhbubyfkmysqgfhjkm
+  timetable_db:
+    image: postgres:16
+    volumes:
+      - postgres_data_timetable:/var/lib/postgresql/data
+      - ./Timetable_microservice/db_init.sql:/docker-entrypoint-initdb.d/db_init.sql
+    ports:
+      - 30002:5432
+    environment:
+      - POSTGRES_USER=timetableadmin
+      - POSTGRES_PASSWORD=totjlbyjxtymjhbubyfkmysqgfhjkm
+      - POSTGRES_DB=timetable_db
+  history_service:
+    build:
+      context: ./History_microservice
+      dockerfile: Dockerfile
+    command: uvicorn main:app --reload --host 0.0.0.0 --port 8000
+    depends_on:
+      - history_db
+    volumes:
+      - ./History_microservice/:/app/
+    ports:
+      - 20003:8000
+    environment:
+      - HISTORY_USER=historyadmin
+      - HISTORY_PSWD=ctqxfcgjplyzzyjxmbzjxtcgfnm
+  history_db:
+    image: postgres:16
+    volumes:
+      - postgres_data_history:/var/lib/postgresql/data
+      - ./History_microservice/db_init.sql:/docker-entrypoint-initdb.d/db_init.sql
+    ports:
+      - 30003:5432
+    environment:
+      - POSTGRES_USER=historyadmin
+      - POSTGRES_PASSWORD=ctqxfcgjplyzzyjxmbzjxtcgfnm
+      - POSTGRES_DB=history_db
 
 volumes:
   postgres_data_account:
   postgres_data_hospital:
+  postgres_data_timetable:
+  postgres_data_history:

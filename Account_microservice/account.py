@@ -78,16 +78,18 @@ async def update_tokens(token):
         # Проверяю, что данный токен не истёк
         if payload['nbf'] - dt.datetime.now(tz=dt.timezone.utc).timestamp() >= refresh_token_lifetime:
             # Если существует, удаляю старый токен из БД
-            await db_manager.delete_token(hashlib.sha512(token.encode()).hexdigest())
             raise HTTPException(status_code=status.HTTP_426_UPGRADE_REQUIRED)
         # Проверяю, что пользователь существует
         if not await db_manager.user_in_db(payload):
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
         # Получаю два новых токена
         new_access_token = await create_token('access', payload)
+        new_refresh_token = await create_token('refresh', payload)
+        await db_manager.add_token(hashlib.sha512(new_refresh_token.encode()).hexdigest(), payload)
 
+        await db_manager.delete_token(hashlib.sha512(token.encode()).hexdigest())
         # Возвращаю два новых токена
-        return new_access_token
+        return new_access_token, new_refresh_token
     except jwt.InvalidTokenError:
         raise HTTPException(status_code=status.HTTP_406_NOT_ACCEPTABLE)
 
@@ -142,13 +144,13 @@ async def validate_token(request: Request):
     return {'success': False}
 
 
-@account_app.post('/api/Authentication/Refresh', status_code=status.HTTP_200_OK)
+@account_app.post('/api/Authentication/Refresh', status_code=status.HTTP_200_OK, response_model=Tokens)
 async def refresh(request: Request):
-    new_access_token = await update_tokens(request.headers.get('jwt_refresh_token'))
-    return {'jwt_access_token': new_access_token}
+    new_access_token, new_refresh_token = await update_tokens(request.headers.get('jwt_refresh_token'))
+    return {'jwt_access_token': new_access_token, 'jwt_refresh_token': new_refresh_token}
 
 
-@account_app.get('/api/Accounts/Me', status_code=status.HTTP_200_OK)
+@account_app.get('/api/Accounts/Me', status_code=status.HTTP_200_OK, response_model=FullUser)
 async def get_info(request: Request):
     if await validate_access_token(request):
         token = request.headers.get('jwt_access_token')
@@ -224,6 +226,14 @@ async def safe_delete(request: Request, user_id: int):
         if not await db_manager.soft_delete(user_id):
             HTTPException(status.HTTP_204_NO_CONTENT)
 
+@account_app.get('/api/Doctors/{doctor_id}', status_code=status.HTTP_200_OK)
+async def get_doctor(request: Request, doctor_id: int):
+    if await validate_access_token(request):
+        doctor = await db_manager.get_user_by_id(doctor_id)
+        if (not doctor) or ('Doctor' not in doctor['roles']):
+            raise HTTPException(status.HTTP_404_NOT_FOUND)
+        doctor = {'id': doctor_id, 'firstName': doctor['firstName'], 'lastName': doctor['lastName']}
+        return doctor
 
 @account_app.get('/api/Doctors', status_code=status.HTTP_200_OK)
 async def get_doctors(request: Request, nameFilter: str = ' ', start: int = 0, count: int = -1):
@@ -231,14 +241,3 @@ async def get_doctors(request: Request, nameFilter: str = ' ', start: int = 0, c
         finish = await db_manager.get_doctor(start, count, nameFilter)
 
         return {'doctors': finish}
-
-
-@account_app.get('/api/Doctors/{id}', status_code=status.HTTP_200_OK)
-async def get_doctor(request: Request, doctor_id: int):
-    if await validate_access_token(request):
-        doctor = await db_manager.get_user_by_id(doctor_id)
-        if (not doctor) or ('doctor' not in doctor['roles']):
-            raise HTTPException(status.HTTP_404_NOT_FOUND)
-        doctor = {'id': doctor_id, 'firstName': doctor['firstName'], 'lastName': doctor['lastName']}
-        return doctor
-

@@ -1,4 +1,5 @@
 import sqlalchemy as pypg
+from sqlalchemy.dialects.postgresql import ARRAY
 from databases import Database
 from os import environ as pyenv
 
@@ -15,7 +16,7 @@ account = pypg.Table(
     pypg.Column('password', pypg.String(128), nullable=False),
     pypg.Column('firstName', pypg.String(50), nullable=False),
     pypg.Column('lastName', pypg.String(50), nullable=False),
-    pypg.Column('roles', pypg.ARRAY(pypg.String), nullable=False, default=('User')),
+    pypg.Column('roles', ARRAY(pypg.String(20)), nullable=False),
     pypg.Column('is_disabled', pypg.Boolean, nullable=False, default=False)
 )
 
