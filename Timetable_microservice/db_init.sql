@@ -28,7 +28,7 @@ CREATE TABLE IF NOT EXISTS public.appointment
 TABLESPACE pg_default;
 
 ALTER TABLE IF EXISTS public.timetables
-    OWNER to accountadmin;
+    OWNER to timetableadmin;
 
 ALTER TABLE IF EXISTS public.appointment
-    OWNER to accountadmin;
+    OWNER to timetableadmin;
